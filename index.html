@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hisab Khata</title>
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Hisab Khata</h1>
+    <p class="sub">Pao na dena hisab</p>
+  </div>
+  <div class="top-actions">
+    <button class="ghost" id="themeBtn" title="Theme bodlan" aria-label="Theme bodlan">◐</button>
+    <button class="ghost" id="menuBtn" aria-haspopup="true" aria-expanded="false">⋯</button>
+    <div class="menu" id="menu" hidden>
+      <button data-act="csv">CSV download</button>
+      <button data-act="backup">Backup (JSON) download</button>
+      <button data-act="restore">Backup theke restore</button>
+      <button data-act="reset" class="danger-text">Shob muche din</button>
+    </div>
+    <input type="file" id="restoreFile" accept="application/json" hidden>
+  </div>
+</header>
+
+<main>
+  <section class="summary">
+    <div class="card dibo">
+      <span class="label">Ami dibo (baki)</span>
+      <strong id="sumDibo">0</strong>
+      <span class="hint" id="cntDibo"></span>
+    </div>
+    <div class="card pabo">
+      <span class="label">Ami pabo (baki)</span>
+      <strong id="sumPabo">0</strong>
+      <span class="hint" id="cntPabo"></span>
+    </div>
+    <div class="card net" id="netCard">
+      <span class="label">Net</span>
+      <strong id="sumNet">0</strong>
+      <span class="hint" id="netText"></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <form id="addForm" class="add" autocomplete="off">
+      <div class="seg" role="radiogroup" aria-label="Dhoron">
+        <label><input type="radio" name="type" value="dibo" checked><span>Ami dibo</span></label>
+        <label><input type="radio" name="type" value="pabo"><span>Ami pabo</span></label>
+      </div>
+      <input name="name" placeholder="Naam" required list="names">
+      <input name="amount" placeholder="Taka (4k, 3300+4000)" required inputmode="decimal">
+      <input name="note" placeholder="Note (optional)">
+      <button type="submit" class="primary">Jog korun</button>
+      <datalist id="names"></datalist>
+    </form>
+    <p class="err" id="formErr" role="alert"></p>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="all" class="on">Shob</button>
+    <button role="tab" data-tab="dibo">Dibo</button>
+    <button role="tab" data-tab="pabo">Pabo</button>
+    <button role="tab" data-tab="people">Manush onujayi</button>
+  </nav>
+
+  <div class="filters">
+    <input id="search" type="search" placeholder="Naam khujun…">
+    <label class="chk"><input type="checkbox" id="showPaid"> Shodh hoye jawa gulo dekhan</label>
+  </div>
+
+  <section id="list" class="list" aria-live="polite"></section>
+</main>
+
+<dialog id="editDlg">
+  <form method="dialog" id="editForm">
+    <h2>Edit korun</h2>
+    <label>Naam <input name="name" required></label>
+    <label>Taka <input name="amount" required inputmode="decimal"></label>
+    <label>Note <input name="note"></label>
+    <label>Dhoron
+      <select name="type"><option value="dibo">Ami dibo</option><option value="pabo">Ami pabo</option></select>
+    </label>
+    <p class="err" id="editErr"></p>
+    <div class="dlg-actions">
+      <button value="cancel" formnovalidate class="ghost">Batil</button>
+      <button value="ok" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="payDlg">
+  <form method="dialog" id="payForm">
+    <h2 id="payTitle">Kichu taka shodh</h2>
+    <p class="sub" id="payInfo"></p>
+    <label>Koto taka shodh holo? <input name="amount" required inputmode="decimal"></label>
+    <p class="err" id="payErr"></p>
+    <div class="dlg-actions">
+      <button value="cancel" formnovalidate class="ghost">Batil</button>
+      <button value="ok" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
