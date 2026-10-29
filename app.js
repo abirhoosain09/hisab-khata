@@ -30,7 +30,31 @@
   }
 
   let entries = load();
+  const imported = importFromLink();
   save();
+
+  // A link like ...#import=<base64 of [[type, name, amount, note], ...]> adds those
+  // entries once. The hash never reaches the server, and is cleared after reading.
+  function importFromLink() {
+    const m = location.hash.match(/^#import=([A-Za-z0-9_\-+/=]+)$/);
+    if (!m) return 0;
+    history.replaceState(null, '', location.pathname + location.search);
+    try {
+      let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
+      b64 += '='.repeat((4 - (b64.length % 4)) % 4);
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const rows = JSON.parse(new TextDecoder().decode(bytes));
+      let added = 0;
+      for (const [type, name, amount, note] of rows) {
+        if (!['dibo', 'pabo'].includes(type) || !name || !(amount > 0)) continue;
+        const dup = entries.some((e) => e.type === type && e.name === name && e.amount === amount);
+        if (dup) continue;
+        entries.push(makeEntry(type, String(name), Number(amount), String(note || '')));
+        added++;
+      }
+      return added;
+    } catch (e) { return -1; }
+  }
 
   // ---------- helpers ----------
   // Accepts "4500", "4,500", "4k", "3300+4000", "3300 + 4k"
@@ -320,4 +344,6 @@
   }
 
   render();
+  if (imported > 0) toast(`${imported} ta entry add hoyeche`);
+  else if (imported < 0) toast('Link ta thik na, data add hoy nai');
 })();

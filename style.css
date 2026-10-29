@@ -155,10 +155,40 @@ dialog label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 1
 .toast button { background: none; border: 0; color: var(--brand); font-weight: 700; }
 
 @media (max-width: 640px) {
-  .summary { grid-template-columns: 1fr 1fr; }
-  .card.net { grid-column: 1 / -1; }
+  body { font-size: 16px; -webkit-text-size-adjust: 100%; }
+  main { padding: 0 12px calc(48px + env(safe-area-inset-bottom)); }
+  .top { padding: calc(14px + env(safe-area-inset-top)) 12px 10px; }
+  h1 { font-size: 1.35rem; }
+  .ghost { min-width: 44px; min-height: 44px; }
+
+  .summary { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .card { padding: 12px; }
+  .card.net { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 10px; }
+  .card.net .label { width: 100%; }
   .card strong { font-size: 1.25rem; }
+
+  .panel { padding: 10px; }
   .add { grid-template-columns: 1fr 1fr; }
-  .add .seg, .add .primary { grid-column: 1 / -1; }
-  .add input[name=name] { grid-column: 1 / -1; }
+  .add .seg, .add .primary, .add input[name=name] { grid-column: 1 / -1; }
+  /* 16px stops iOS from zooming into fields on focus */
+  .add input, dialog input, dialog select, .filters input[type=search] { font-size: 16px; min-height: 46px; }
+  .seg span { padding: 10px; font-size: 1rem; }
+  .primary { min-height: 46px; }
+
+  .tabs { margin: 14px -12px 10px; padding: 0 12px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { min-height: 38px; }
+  .filters { gap: 8px; }
+  .chk { min-height: 32px; }
+
+  .row { padding: 12px; }
+  .row .acts { gap: 6px; margin-top: 4px; }
+  .row .acts button { flex: 1 1 auto; min-height: 38px; padding: 4px 8px; white-space: nowrap; }
+
+  dialog { padding: 16px; }
+  .dlg-actions button { flex: 1; min-height: 46px; }
+  .toast { bottom: calc(16px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 360px) {
+  .summary { grid-template-columns: 1fr; }
 }
