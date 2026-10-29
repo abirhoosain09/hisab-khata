@@ -55,6 +55,26 @@ h1 { margin: 0; font-size: 1.5rem; letter-spacing: -.01em; }
 .menu button { background: none; border: 0; text-align: left; padding: 10px 12px; border-radius: 8px; }
 .menu button:hover { background: var(--surface-2); }
 .danger-text { color: var(--dibo); }
+.menu-user { margin: 4px 12px 6px; color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
+[hidden] { display: none !important; }
+
+.auth {
+  max-width: 400px; margin: 24px auto; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow);
+}
+.auth h2 { margin: 0 0 4px; font-size: 1.25rem; }
+.auth .sub { margin-bottom: 16px; }
+.auth form { display: flex; flex-direction: column; gap: 12px; }
+.auth label { display: flex; flex-direction: column; gap: 4px; font-size: .88rem; color: var(--muted); }
+.auth input {
+  border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px;
+  padding: 11px 12px; font-size: 16px; width: 100%;
+}
+.auth .primary { min-height: 46px; }
+.auth .primary:disabled { opacity: .6; cursor: progress; }
+.auth .err { margin: 0; }
+.auth-links { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.link { background: none; border: 0; padding: 6px 0; color: var(--brand); font-weight: 600; }
 
 .ghost {
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;

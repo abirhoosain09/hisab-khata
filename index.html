@@ -17,18 +17,38 @@
   </div>
   <div class="top-actions">
     <button class="ghost" id="themeBtn" title="Theme bodlan" aria-label="Theme bodlan">◐</button>
-    <button class="ghost" id="menuBtn" aria-haspopup="true" aria-expanded="false">⋯</button>
+    <button class="ghost" id="menuBtn" aria-haspopup="true" aria-expanded="false" hidden>⋯</button>
     <div class="menu" id="menu" hidden>
+      <p class="menu-user" id="userEmail"></p>
       <button data-act="csv">CSV download</button>
       <button data-act="backup">Backup (JSON) download</button>
       <button data-act="restore">Backup theke restore</button>
       <button data-act="reset" class="danger-text">Shob muche din</button>
+      <button data-act="logout">Logout</button>
     </div>
     <input type="file" id="restoreFile" accept="application/json" hidden>
   </div>
 </header>
 
 <main>
+  <p class="empty" id="bootView">Load hocche…</p>
+
+  <section class="auth" id="authView" hidden>
+    <h2 id="authTitle">Login korun</h2>
+    <p class="sub">Apnar hishab shudhu apni dekhben. Je kono phone ba computer theke login korle eki hishab paben.</p>
+    <form id="authForm" novalidate>
+      <label>Email <input type="email" name="email" required autocomplete="email" inputmode="email"></label>
+      <label>Password <input type="password" name="password" required minlength="6" autocomplete="current-password"></label>
+      <p class="err" id="authErr" role="alert"></p>
+      <button type="submit" class="primary" id="authSubmit">Login</button>
+    </form>
+    <div class="auth-links">
+      <button type="button" class="link" id="authSwitch">Account nai? Register korun</button>
+      <button type="button" class="link" id="forgotBtn">Password bhule gechen?</button>
+    </div>
+  </section>
+
+  <div id="appView" hidden>
   <section class="summary">
     <div class="card dibo">
       <span class="label">Ami dibo (baki)</span>
@@ -75,6 +95,7 @@
   </div>
 
   <section id="list" class="list" aria-live="polite"></section>
+  </div>
 </main>
 
 <dialog id="editDlg">
@@ -109,6 +130,6 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

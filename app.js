@@ -1,10 +1,21 @@
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  sendPasswordResetEmail, signOut,
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+import {
+  initializeFirestore, persistentLocalCache, doc, onSnapshot, setDoc,
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+import { firebaseConfig } from './firebase-config.js';
+
 (() => {
   'use strict';
 
-  const KEY = 'hisab-khata-v1';
+  // Entries saved before login existed; moved into the account on first login.
+  const LOCAL_KEY = 'hisab-khata-v1';
+  const PENDING_KEY = 'hisab-khata-pending-import';
   const THEME_KEY = 'hisab-khata-theme';
   const $ = (s) => document.querySelector(s);
-
 
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const today = () => new Date().toISOString().slice(0, 10);
@@ -13,48 +24,139 @@
     return { id: uid(), type, name: name.trim(), amount, paid: 0, note: note.trim(), date: today(), payments: [] };
   }
 
-  // ---------- storage ----------
-  function load() {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        const data = JSON.parse(raw);
-        if (Array.isArray(data)) return data;
-      }
-    } catch (e) { /* start empty */ }
-    return [];
-  }
-  function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(entries)); }
-    catch (e) { toast('Save kora gelo na (browser storage bondho?)'); }
-  }
+  // ---------- firebase ----------
+  const fbApp = initializeApp(firebaseConfig);
+  const auth = getAuth(fbApp);
+  const db = initializeFirestore(fbApp, { localCache: persistentLocalCache() });
 
-  let entries = load();
-  const imported = importFromLink();
-  save();
+  let user = null;
+  let entries = [];
+  let unsubscribe = null;
+
+  // Each user has one document, users/{uid}; Firestore rules let only that user read or write it.
+  function save() {
+    if (!user) return;
+    setDoc(doc(db, 'users', user.uid), { entries, updated: Date.now() })
+      .catch(() => toast('Save kora gelo na, internet check korun', false));
+  }
 
   // A link like ...#import=<base64 of [[type, name, amount, note], ...]> adds those
-  // entries once. The hash never reaches the server, and is cleared after reading.
-  function importFromLink() {
+  // entries once. The hash never reaches the server; it waits here until login.
+  let importError = false;
+  (function readImportLink() {
     const m = location.hash.match(/^#import=([A-Za-z0-9_\-+/=]+)$/);
-    if (!m) return 0;
+    if (!m) return;
     history.replaceState(null, '', location.pathname + location.search);
     try {
       let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
       b64 += '='.repeat((4 - (b64.length % 4)) % 4);
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
       const rows = JSON.parse(new TextDecoder().decode(bytes));
-      let added = 0;
-      for (const [type, name, amount, note] of rows) {
-        if (!['dibo', 'pabo'].includes(type) || !name || !(amount > 0)) continue;
-        const dup = entries.some((e) => e.type === type && e.name === name && e.amount === amount);
-        if (dup) continue;
-        entries.push(makeEntry(type, String(name), Number(amount), String(note || '')));
-        added++;
-      }
-      return added;
-    } catch (e) { return -1; }
+      if (!Array.isArray(rows)) throw 0;
+      sessionStorage.setItem(PENDING_KEY, JSON.stringify(rows));
+    } catch (e) { importError = true; }
+  })();
+
+  function addIfNew(type, name, amount, note, extra) {
+    if (!['dibo', 'pabo'].includes(type) || !name || !(amount > 0)) return false;
+    if (entries.some((e) => e.type === type && e.name === name && e.amount === amount)) return false;
+    entries.push({ ...makeEntry(type, String(name), Number(amount), String(note || '')), ...extra });
+    return true;
   }
+
+  // Runs once after the account's data first loads.
+  function adoptPending() {
+    let added = 0;
+    try {
+      const old = JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
+      for (const e of Array.isArray(old) ? old : []) {
+        if (addIfNew(e.type, e.name, e.amount, e.note, { paid: e.paid || 0, payments: e.payments || [], date: e.date || today() })) added++;
+      }
+      localStorage.removeItem(LOCAL_KEY);
+    } catch (e) { /* nothing to move */ }
+    try {
+      const rows = JSON.parse(sessionStorage.getItem(PENDING_KEY) || '[]');
+      for (const [type, name, amount, note] of rows) if (addIfNew(type, name, amount, note)) added++;
+      sessionStorage.removeItem(PENDING_KEY);
+    } catch (e) { importError = true; }
+    if (added) { save(); toast(`${added} ta entry add hoyeche`, false); }
+    else if (importError) toast('Link ta thik na, data add hoy nai', false);
+    importError = false;
+  }
+
+  // ---------- auth screen ----------
+  let registering = false;
+  function setAuthMode(reg) {
+    registering = reg;
+    $('#authTitle').textContent = reg ? 'Notun account khulun' : 'Login korun';
+    $('#authSubmit').textContent = reg ? 'Register' : 'Login';
+    $('#authSwitch').textContent = reg ? 'Account ache? Login korun' : 'Account nai? Register korun';
+    $('#authForm').password.autocomplete = reg ? 'new-password' : 'current-password';
+    $('#authErr').textContent = '';
+  }
+  const AUTH_ERRORS = {
+    'auth/invalid-credential': 'Email ba password vul',
+    'auth/wrong-password': 'Email ba password vul',
+    'auth/user-not-found': 'Ei email e kono account nai',
+    'auth/email-already-in-use': 'Ei email e already account ache, login korun',
+    'auth/weak-password': 'Password kompokkhe 6 okkhor hote hobe',
+    'auth/invalid-email': 'Email thik moto likhun',
+    'auth/missing-password': 'Password likhun',
+    'auth/too-many-requests': 'Onek bar chesta hoyeche, kichukkhon por abar chesta korun',
+    'auth/network-request-failed': 'Internet connection nai',
+  };
+  const authMsg = (err) => AUTH_ERRORS[err && err.code] || 'Kichu ekta vul hoyeche, abar chesta korun';
+
+  $('#authSwitch').addEventListener('click', () => setAuthMode(!registering));
+  $('#authForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const f = ev.target;
+    const btn = $('#authSubmit');
+    btn.disabled = true;
+    $('#authErr').textContent = '';
+    try {
+      const email = f.email.value.trim();
+      if (registering) await createUserWithEmailAndPassword(auth, email, f.password.value);
+      else await signInWithEmailAndPassword(auth, email, f.password.value);
+      f.password.value = '';
+    } catch (err) {
+      $('#authErr').textContent = authMsg(err);
+    } finally { btn.disabled = false; }
+  });
+  $('#forgotBtn').addEventListener('click', async () => {
+    const email = $('#authForm').email.value.trim();
+    if (!email) { $('#authErr').textContent = 'Age upore email likhun'; return; }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      $('#authErr').textContent = '';
+      toast('Password reset link apnar email e pathano hoyeche', false);
+    } catch (err) { $('#authErr').textContent = authMsg(err); }
+  });
+
+  function showView(name) {
+    $('#bootView').hidden = name !== 'boot';
+    $('#authView').hidden = name !== 'auth';
+    $('#appView').hidden = name !== 'app';
+    $('#menuBtn').hidden = name !== 'app';
+  }
+
+  onAuthStateChanged(auth, (u) => {
+    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+    user = u;
+    entries = [];
+    undoSnapshot = null;
+    if (!u) { setAuthMode(registering); showView('auth'); return; }
+    $('#userEmail').textContent = u.email;
+    showView('app');
+    render();
+    let first = true;
+    unsubscribe = onSnapshot(doc(db, 'users', u.uid), (snap) => {
+      const data = snap.exists() ? snap.data() : null;
+      entries = data && Array.isArray(data.entries) ? data.entries : [];
+      if (first) { first = false; adoptPending(); }
+      render();
+    }, () => toast('Data load kora gelo na', false));
+  });
 
   // ---------- helpers ----------
   // Accepts "4500", "4,500", "4k", "3300+4000", "3300 + 4k"
@@ -74,6 +176,7 @@
   const isDone = (e) => left(e) <= 0;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const norm = (s) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+  const byId = (id) => entries.find((x) => x.id === id);
 
   // ---------- state ----------
   let tab = 'all';
@@ -125,7 +228,7 @@
     const partial = e.paid > 0 && !done;
     const meta = [e.note, e.date, partial ? `${fmt(e.paid)} shodh hoyeche` : '', done ? 'Shodh ✓' : '']
       .filter(Boolean).map(esc).join(' · ');
-    return `<article class="row ${e.type} ${done ? 'done' : ''}" data-id="${e.id}">
+    return `<article class="row ${e.type} ${done ? 'done' : ''}" data-id="${esc(e.id)}">
       <div><div class="name">${esc(e.name)}</div><div class="meta">${meta}</div></div>
       <div class="amt">${fmt(done ? e.amount : left(e))}${partial ? `<small>mot ${fmt(e.amount)}</small>` : ''}</div>
       <div class="acts">
@@ -185,7 +288,7 @@
   $('#list').addEventListener('click', (ev) => {
     const btn = ev.target.closest('button[data-a]');
     if (!btn) return;
-    const e = entries.find((x) => x.id === btn.closest('.row').dataset.id);
+    const e = byId(btn.closest('.row').dataset.id);
     if (!e) return;
     const a = btn.dataset.a;
     if (a === 'settle') {
@@ -207,10 +310,10 @@
     }
   });
 
-  // edit dialog
-  let editing = null;
+  // edit dialog (keeps the id: a sync from another device may replace the entry objects)
+  let editingId = null;
   function openEdit(e) {
-    editing = e;
+    editingId = e.id;
     const f = $('#editForm');
     f.name.value = e.name; f.amount.value = e.amount; f.note.value = e.note; f.type.value = e.type;
     $('#editErr').textContent = '';
@@ -225,16 +328,18 @@
       $('#editErr').textContent = 'Naam ar thik taka din';
       return;
     }
+    const e = byId(editingId);
+    if (!e) return;
     snapshot();
-    Object.assign(editing, { name: f.name.value.trim(), amount, note: f.note.value.trim(), type: f.type.value });
-    editing.paid = Math.min(editing.paid, amount);
+    Object.assign(e, { name: f.name.value.trim(), amount, note: f.note.value.trim(), type: f.type.value });
+    e.paid = Math.min(e.paid, amount);
     commit('Update hoyeche');
   });
 
   // partial payment dialog
-  let paying = null;
+  let payingId = null;
   function openPay(e) {
-    paying = e;
+    payingId = e.id;
     $('#payTitle').textContent = `${e.name}: kichu taka shodh`;
     $('#payInfo').textContent = `Baki ache ${fmt(left(e))}`;
     $('#payForm').amount.value = '';
@@ -243,16 +348,18 @@
   }
   $('#payForm').addEventListener('submit', (ev) => {
     if (ev.submitter && ev.submitter.value === 'cancel') return;
+    const e = byId(payingId);
+    if (!e) return;
     const amt = parseAmount(ev.target.amount.value);
-    if (!(amt > 0) || amt > left(paying)) {
+    if (!(amt > 0) || amt > left(e)) {
       ev.preventDefault();
-      $('#payErr').textContent = `0 theke ${fmt(left(paying))} er moddhe likhun`;
+      $('#payErr').textContent = `0 theke ${fmt(left(e))} er moddhe likhun`;
       return;
     }
     snapshot();
-    paying.paid += amt;
-    paying.payments.push({ amount: amt, date: today() });
-    commit(`${paying.name}: ${fmt(amt)} shodh, baki ${fmt(left(paying))}`);
+    e.paid += amt;
+    e.payments.push({ amount: amt, date: today() });
+    commit(`${e.name}: ${fmt(amt)} shodh, baki ${fmt(left(e))}`);
   });
 
   // tabs & filters
@@ -282,6 +389,7 @@
     if (a === 'reset' && confirm('Shob entry muche felben? (Undo kora jabe)')) {
       snapshot(); entries = []; commit('Shob muche fela holo');
     }
+    if (a === 'logout') signOut(auth);
   });
   $('#restoreFile').addEventListener('change', async (ev) => {
     const file = ev.target.files[0];
@@ -342,8 +450,4 @@
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
-
-  render();
-  if (imported > 0) toast(`${imported} ta entry add hoyeche`);
-  else if (imported < 0) toast('Link ta thik na, data add hoy nai');
 })();

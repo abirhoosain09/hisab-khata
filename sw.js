@@ -1,5 +1,5 @@
-const CACHE = 'hisab-v2';
-const FILES = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'icon.svg'];
+const CACHE = 'hisab-v3';
+const FILES = ['./', 'index.html', 'style.css', 'app.js', 'firebase-config.js', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)));
@@ -10,7 +10,8 @@ self.addEventListener('activate', (e) => {
 });
 // Network first so updates show up; cache when offline
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
+  // Only this site's own files; Firebase traffic (login, live data sync) must go straight through.
+  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     fetch(e.request)
       .then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return r; })
