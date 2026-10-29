@@ -7,6 +7,10 @@
 <meta name="theme-color" content="#0f766e">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hisab">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,6 +20,7 @@
     <p class="sub">Pao na dena hisab</p>
   </div>
   <div class="top-actions">
+    <button class="install-btn" id="installBtn" hidden>📲 Install</button>
     <button class="ghost" id="themeBtn" title="Theme bodlan" aria-label="Theme bodlan">◐</button>
     <button class="ghost" id="menuBtn" aria-haspopup="true" aria-expanded="false" hidden>⋯</button>
     <div class="menu" id="menu" hidden>
@@ -124,6 +129,16 @@
     <div class="dlg-actions">
       <button value="cancel" formnovalidate class="ghost">Batil</button>
       <button value="ok" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="installDlg">
+  <form method="dialog">
+    <h2>Home screen e add korun</h2>
+    <ol class="steps" id="installSteps"></ol>
+    <div class="dlg-actions">
+      <button value="ok" class="primary">Bujhechi</button>
     </div>
   </form>
 </dialog>

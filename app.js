@@ -11,7 +11,7 @@ import { firebaseConfig } from './firebase-config.js';
 (() => {
   'use strict';
 
-  // Entries saved before login existed; moved into the account on first login.
+  // Keys used by older versions; cleared on load.
   const LOCAL_KEY = 'hisab-khata-v1';
   const PENDING_KEY = 'hisab-khata-pending-import';
   const THEME_KEY = 'hisab-khata-theme';
@@ -40,49 +40,13 @@ import { firebaseConfig } from './firebase-config.js';
       .catch(() => toast('Save kora gelo na, internet check korun', false));
   }
 
-  // A link like ...#import=<base64 of [[type, name, amount, note], ...]> adds those
-  // entries once. The hash never reaches the server; it waits here until login.
-  let importError = false;
-  (function readImportLink() {
-    const m = location.hash.match(/^#import=([A-Za-z0-9_\-+/=]+)$/);
-    if (!m) return;
-    history.replaceState(null, '', location.pathname + location.search);
-    try {
-      let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
-      b64 += '='.repeat((4 - (b64.length % 4)) % 4);
-      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-      const rows = JSON.parse(new TextDecoder().decode(bytes));
-      if (!Array.isArray(rows)) throw 0;
-      sessionStorage.setItem(PENDING_KEY, JSON.stringify(rows));
-    } catch (e) { importError = true; }
-  })();
-
-  function addIfNew(type, name, amount, note, extra) {
-    if (!['dibo', 'pabo'].includes(type) || !name || !(amount > 0)) return false;
-    if (entries.some((e) => e.type === type && e.name === name && e.amount === amount)) return false;
-    entries.push({ ...makeEntry(type, String(name), Number(amount), String(note || '')), ...extra });
-    return true;
-  }
-
-  // Runs once after the account's data first loads.
-  function adoptPending() {
-    let added = 0;
-    try {
-      const old = JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
-      for (const e of Array.isArray(old) ? old : []) {
-        if (addIfNew(e.type, e.name, e.amount, e.note, { paid: e.paid || 0, payments: e.payments || [], date: e.date || today() })) added++;
-      }
-      localStorage.removeItem(LOCAL_KEY);
-    } catch (e) { /* nothing to move */ }
-    try {
-      const rows = JSON.parse(sessionStorage.getItem(PENDING_KEY) || '[]');
-      for (const [type, name, amount, note] of rows) if (addIfNew(type, name, amount, note)) added++;
-      sessionStorage.removeItem(PENDING_KEY);
-    } catch (e) { importError = true; }
-    if (added) { save(); toast(`${added} ta entry add hoyeche`, false); }
-    else if (importError) toast('Link ta thik na, data add hoy nai', false);
-    importError = false;
-  }
+  // Every new account starts empty. Older versions kept entries in this browser and
+  // accepted #import= data links; drop both so they never land in someone else's account.
+  try {
+    localStorage.removeItem(LOCAL_KEY);
+    sessionStorage.removeItem(PENDING_KEY);
+  } catch (e) { /* storage blocked */ }
+  if (location.hash.startsWith('#import=')) history.replaceState(null, '', location.pathname + location.search);
 
   // ---------- auth screen ----------
   let registering = false;
@@ -149,11 +113,9 @@ import { firebaseConfig } from './firebase-config.js';
     $('#userEmail').textContent = u.email;
     showView('app');
     render();
-    let first = true;
     unsubscribe = onSnapshot(doc(db, 'users', u.uid), (snap) => {
       const data = snap.exists() ? snap.data() : null;
       entries = data && Array.isArray(data.entries) ? data.entries : [];
-      if (first) { first = false; adoptPending(); }
       render();
     }, () => toast('Data load kora gelo na', false));
   });
@@ -450,4 +412,55 @@ import { firebaseConfig } from './firebase-config.js';
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
+
+  // ---------- install to home screen ----------
+  // Chrome/Edge/Samsung fire beforeinstallprompt and can install with one tap.
+  // iPhone Safari and other browsers can't, so the button shows the menu steps instead.
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isMobile = isIOS || /Android|Mobile/i.test(ua);
+  const isInstalled = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  let installPrompt = null;
+  const installBtn = $('#installBtn');
+
+  function updateInstallBtn() {
+    installBtn.hidden = isInstalled() || !(installPrompt || isMobile);
+  }
+  window.addEventListener('beforeinstallprompt', (ev) => {
+    ev.preventDefault();
+    installPrompt = ev;
+    updateInstallBtn();
+  });
+  window.addEventListener('appinstalled', () => {
+    installPrompt = null;
+    updateInstallBtn();
+    toast('App install hoyeche, Home screen e "Hisab" icon dekhun', false);
+  });
+  installBtn.addEventListener('click', async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      await installPrompt.userChoice.catch(() => {});
+      installPrompt = null;
+      updateInstallBtn();
+      return;
+    }
+    const inApp = /FBAN|FBAV|Instagram|Messenger|WhatsApp/i.test(ua);
+    const steps = inApp ? [
+      'Ei page ta Facebook/WhatsApp er vitore khola. Upore <b>⋮</b> ba <b>…</b> chapun',
+      '<b>Open in Chrome</b> (iPhone e <b>Open in Safari</b>) chapun',
+      'Oikhane abar <b>📲 Install</b> button chapun',
+    ] : isIOS ? [
+      'Ei page ta <b>Safari</b> te khulun (Chrome e iPhone e hoy na)',
+      'Niche <b>Share</b> button (□↑) chapun',
+      'Niche scroll kore <b>Add to Home Screen</b> chapun',
+      'Upore dane <b>Add</b> chapun',
+    ] : [
+      'Browser er upore dane <b>⋮</b> menu chapun',
+      '<b>Add to Home screen</b> ba <b>Install app</b> chapun',
+      '<b>Install</b> / <b>Add</b> chapun',
+    ];
+    $('#installSteps').innerHTML = steps.map((s) => `<li>${s}</li>`).join('');
+    $('#installDlg').showModal();
+  });
+  updateInstallBtn();
 })();

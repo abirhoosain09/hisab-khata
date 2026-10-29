@@ -76,6 +76,13 @@ h1 { margin: 0; font-size: 1.5rem; letter-spacing: -.01em; }
 .auth-links { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .link { background: none; border: 0; padding: 6px 0; color: var(--brand); font-weight: 600; }
 
+.install-btn {
+  background: var(--brand); color: var(--brand-ink); border: 0; border-radius: 10px;
+  padding: 8px 12px; font-weight: 600; white-space: nowrap;
+}
+.steps { margin: 0 0 8px; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
+.steps b { color: var(--brand); }
+
 .ghost {
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
   padding: 8px 12px; min-width: 40px;
@@ -179,7 +186,7 @@ dialog label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 1
   main { padding: 0 12px calc(48px + env(safe-area-inset-bottom)); }
   .top { padding: calc(14px + env(safe-area-inset-top)) 12px 10px; }
   h1 { font-size: 1.35rem; }
-  .ghost { min-width: 44px; min-height: 44px; }
+  .ghost, .install-btn { min-width: 44px; min-height: 44px; }
 
   .summary { grid-template-columns: 1fr 1fr; gap: 8px; }
   .card { padding: 12px; }
